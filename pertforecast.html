@@ -142,7 +142,7 @@
 
             <!-- Output Section -->
             <div id="output-container" class="hidden bg-white p-6 rounded-xl shadow-lg">
-                <h2 class="text-xl font-semibold mb-4 border-b pb-2">Analysis Results</h2>
+                <h2 class="text-xl font-semibold mb-4 border-b pb-2">Project Timeline Analysis</h2>
                 
                 <h3 class="text-lg font-semibold mt-4">Network Diagram (Time-Scaled)</h3>
                 <div id="diagram-container" class="w-full h-96 bg-gray-50 rounded-lg border border-gray-200 overflow-hidden mt-2">
@@ -173,6 +173,34 @@
                 <div id="probability-chart-container" class="w-full h-96 bg-gray-50 rounded-lg border border-gray-200 overflow-hidden mt-2">
                     <svg id="probability-chart" class="w-full h-full"></svg>
                 </div>
+
+                <!-- Total Quantity of Work Section -->
+                <div id="effort-analysis-section" class="mt-12 pt-8 border-t-2 border-gray-200">
+                    <h2 class="text-xl font-semibold mb-4 border-b pb-2">Total Quantity of Work Analysis</h2>
+                    <p class="text-sm text-gray-600 mb-4">This analysis calculates the total effort required by summing all tasks as if they were done sequentially, ignoring parallel work.</p>
+                    
+                    <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div id="effort-summary" class="bg-gray-50 p-4 rounded-lg border">
+                           <h3 class="font-semibold text-lg mb-2">Effort Summary (from Simulation)</h3>
+                           <!-- Effort summary results will be populated here -->
+                        </div>
+                        <div class="bg-gray-50 p-4 rounded-lg border">
+                            <h3 class="font-semibold text-lg mb-2">Effort Probability</h3>
+                            <div class="flex items-center space-x-2">
+                                <label for="target-effort" class="whitespace-nowrap">Target Effort:</label>
+                                <input type="number" id="target-effort" class="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500" placeholder="e.g., 40">
+                                <button id="calculate-effort-prob-btn" class="bg-indigo-600 text-white py-2 px-4 rounded-lg hover:bg-indigo-700 transition">Calculate</button>
+                            </div>
+                            <p id="effort-probability-result" class="mt-3 text-center font-medium text-lg">&nbsp;</p>
+                        </div>
+                    </div>
+                    
+                    <h3 class="text-lg font-semibold mt-6">Effort Distribution (from Simulation)</h3>
+                    <div id="effort-chart-container" class="w-full h-96 bg-gray-50 rounded-lg border border-gray-200 overflow-hidden mt-2">
+                        <svg id="effort-chart" class="w-full h-full"></svg>
+                    </div>
+                </div>
+
             </div>
             <div id="welcome-message" class="text-center py-20 bg-white rounded-xl shadow-lg">
                 <h2 class="text-2xl font-semibold text-gray-700">Let's Get Started!</h2>
@@ -210,12 +238,19 @@
             const calculateProbBtn = document.getElementById('calculate-prob-btn');
             const probabilityResult = document.getElementById('probability-result');
             const iterationsInput = document.getElementById('iterations');
+
+            // New elements for effort analysis
+            const effortSummary = document.getElementById('effort-summary');
+            const targetEffortInput = document.getElementById('target-effort');
+            const calculateEffortProbBtn = document.getElementById('calculate-effort-prob-btn');
+            const effortProbabilityResult = document.getElementById('effort-probability-result');
             
             const errorModal = document.getElementById('error-modal');
             const errorMessage = document.getElementById('error-message');
             const closeModalBtn = document.getElementById('close-modal-btn');
 
-            let simulationResults = []; // Store results for probability calculation
+            let simulationResults = [];
+            let effortSimulationResults = [];
 
             // --- Task Management ---
             function getNextTaskLetter() {
@@ -258,12 +293,13 @@
             function loadSampleData() {
                 tasksTbody.innerHTML = '';
                 const sampleTasks = [
-                    { letter: 'A', a: 2, m: 4, b: 6, deps: '' },
-                    { letter: 'B', a: 3, m: 5, b: 8, deps: 'A' },
-                    { letter: 'C', a: 4, m: 6, b: 9, deps: 'A' },
-                    { letter: 'D', a: 2, m: 3, b: 5, deps: 'B' },
-                    { letter: 'E', a: 5, m: 7, b: 10, deps: 'C' },
-                    { letter: 'F', a: 3, m: 4, b: 6, deps: 'D,E' }
+                    { letter: 'A', a: 2, m: 4, b: 10, deps: '' },
+                    { letter: 'B', a: 3, m: 5, b: 12, deps: 'A' },
+                    { letter: 'C', a: 4, m: 6, b: 15, deps: 'A' },
+                    { letter: 'D', a: 2, m: 3, b: 9, deps: 'B' },
+                    { letter: 'E', a: 5, m: 7, b: 14, deps: 'C' },
+                    { letter: 'F', a: 5, m: 7, b: 14, deps: 'D, E' },					
+                    { letter: 'G', a: 3, m: 4, b: 11, deps: 'D,F' }
                 ];
                 sampleTasks.forEach(task => addTask(task));
             }
@@ -480,21 +516,27 @@
                         
                         const iterations = parseInt(iterationsInput.value) || 50000;
                         simulationResults = [];
+                        effortSimulationResults = [];
+
                         for (let i = 0; i < iterations; i++) {
                             const simTasks = JSON.parse(JSON.stringify(tasks));
+                            let totalEffort = 0;
                             Object.values(simTasks).forEach(task => {
+                                let duration = task.a;
                                 if (task.b - task.a > 0) {
                                     const sample = betaSample(task.alpha, task.beta);
-                                    task.expectedTime = task.a + sample * (task.b - task.a);
-                                } else {
-                                    task.expectedTime = task.a;
+                                    duration = task.a + sample * (task.b - task.a);
                                 }
+                                task.expectedTime = duration;
+                                totalEffort += duration;
                             });
                             const simResult = performPERT(simTasks);
                             simulationResults.push(simResult.projectDuration);
+                            effortSimulationResults.push(totalEffort);
                         }
 
                         displayResults({ tasks: fullGraph, simulationResults });
+                        displayEffortResults({ effortSimulationResults });
 
                     } catch (e) {
                         console.error(e);
@@ -602,7 +644,12 @@
                 calculateProbability();
 
                 drawDiagram({ tasks });
-                drawProbabilityChart({ simulationResults, p50, p68, p95, p997 });
+                drawProbabilityChart({ 
+                    svgId: '#probability-chart',
+                    simulationResults, 
+                    p50, p68, p95, p997, 
+                    title: "Project Completion Time (Days)" 
+                });
             }
             
             function calculateProbability() {
@@ -618,6 +665,50 @@
                 probabilityResult.className = 'mt-3 text-center font-medium text-lg text-indigo-700';
             }
             calculateProbBtn.addEventListener('click', calculateProbability);
+
+            function displayEffortResults({ effortSimulationResults }) {
+                effortSimulationResults.sort((a, b) => a - b);
+
+                const simMean = d3.mean(effortSimulationResults);
+                const p50 = d3.quantile(effortSimulationResults, 0.50);
+                const p68 = d3.quantile(effortSimulationResults, 0.68);
+                const p95 = d3.quantile(effortSimulationResults, 0.95);
+                const p997 = d3.quantile(effortSimulationResults, 0.997);
+
+                effortSummary.innerHTML = `
+                    <h3 class="font-semibold text-lg mb-3 text-gray-800">Effort Summary (from Simulation)</h3>
+                    <p class="flex justify-between"><span>Mean Effort:</span> <span class="font-bold">${simMean.toPrecision(2)}</span></p>
+                    <p class="flex justify-between border-t pt-2 mt-2"><span>50% Confidence (Median):</span> <span class="font-bold">${p50.toPrecision(2)}</span></p>
+                    <p class="flex justify-between"><span>68% Confidence:</span> <span class="font-bold">${p68.toPrecision(2)}</span></p>
+                    <p class="flex justify-between"><span>95% Confidence:</span> <span class="font-bold">${p95.toPrecision(2)}</span></p>
+                    <p class="flex justify-between"><span>99.7% Confidence:</span> <span class="font-bold">${p997.toPrecision(2)}</span></p>
+                `;
+                
+                targetEffortInput.value = Math.ceil(simMean);
+                calculateEffortProbability();
+
+                drawProbabilityChart({ 
+                    svgId: '#effort-chart',
+                    simulationResults: effortSimulationResults, 
+                    p50, p68, p95, p997, 
+                    title: "Project Effort (Days)" 
+                });
+            }
+
+            function calculateEffortProbability() {
+                const target = parseFloat(targetEffortInput.value);
+                if (isNaN(target) || target < 0) {
+                    effortProbabilityResult.textContent = 'Invalid target';
+                    effortProbabilityResult.className = 'mt-3 text-center font-medium text-lg text-red-500';
+                    return;
+                }
+                const successCount = effortSimulationResults.filter(d => d <= target).length;
+                const probability = successCount / effortSimulationResults.length;
+                effortProbabilityResult.textContent = `Prob. of effort being = ${target}: ${(probability * 100).toFixed(0)}%`;
+                effortProbabilityResult.className = 'mt-3 text-center font-medium text-lg text-indigo-700';
+            }
+            calculateEffortProbBtn.addEventListener('click', calculateEffortProbability);
+
 
             function drawDiagram({ tasks }) {
                 const svg = d3.select("#network-diagram");
@@ -700,13 +791,13 @@
                 });
             }
             
-            function drawProbabilityChart({ simulationResults, p50, p68, p95, p997 }) {
-                const svg = d3.select("#probability-chart");
+            function drawProbabilityChart({ svgId, simulationResults, p50, p68, p95, p997, title }) {
+                const svg = d3.select(svgId);
                 svg.selectAll("*").remove();
 
                 const margin = {top: 40, right: 90, bottom: 50, left: 60}; // Increased right margin
-                const width = document.getElementById('probability-chart-container').clientWidth - margin.left - margin.right;
-                const height = document.getElementById('probability-chart-container').clientHeight - margin.top - margin.bottom;
+                const width = document.getElementById(svgId.substring(1)).parentElement.clientWidth - margin.left - margin.right;
+                const height = document.getElementById(svgId.substring(1)).parentElement.clientHeight - margin.top - margin.bottom;
 
                 const chart = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
                 
@@ -812,7 +903,7 @@
 
 
                 // Labels
-                svg.append("text").attr("text-anchor", "middle").attr("x", margin.left + width / 2).attr("y", height + margin.top + 40).text("Project Completion Time (Days)").attr("fill", "#374151").attr("font-weight", 500);
+                svg.append("text").attr("text-anchor", "middle").attr("x", margin.left + width / 2).attr("y", height + margin.top + 40).text(title).attr("fill", "#374151").attr("font-weight", 500);
                 svg.append("text").attr("transform", "rotate(-90)").attr("y", 0).attr("x", 0 - (height / 2) - margin.top).attr("dy", "1em").attr("text-anchor", "middle").text("Probability Density").attr("fill", "#3b82f6").attr("font-weight", 500);
                 svg.append("text").attr("transform", "rotate(-90)").attr("y", width + margin.left + margin.right).attr("x", 0 - (height / 2) - margin.top).attr("dy", "-3.5em").attr("text-anchor", "middle").text("Cumulative Probability").attr("fill", "#f97316").attr("font-weight", 500);
             }
