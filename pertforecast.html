@@ -24,18 +24,27 @@
             pointer-events: none;
             text-anchor: middle;
         }
+        /* Dotted line representing total time between tasks */
         .link {
             stroke: #9ca3af;
             stroke-opacity: 0.8;
             stroke-width: 2px;
             fill: none;
+            stroke-dasharray: 4, 4;
+        }
+        /* Solid line representing task duration (Te) */
+        .duration-line {
+             stroke-width: 3px;
+             stroke: #60a5fa; /* Blue for duration */
         }
         .link-arrow {
             fill: #9ca3af;
         }
+        /* Critical path styling for the main link line */
         .link.critical-path {
-            stroke: #ef4444;
+            stroke: #ef4444; /* Red for critical */
             stroke-width: 3px;
+            stroke-dasharray: none;
         }
         #end-arrow-critical path {
             fill: #ef4444;
@@ -92,7 +101,8 @@
     <div class="container mx-auto p-4 md:p-8">
         <header class="text-center mb-8">
             <h1 class="text-3xl md:text-4xl font-bold text-gray-900">PERT Network Analyzer</h1>
-            <p class="text-md text-gray-600 mt-2">Powered by Monte Carlo Simulation for Accurate Project Forecasting</p>
+            <p class="text-md text-gray-600 mt-2">Forecast the time to complete a project using 3-point estimates for each task</p>
+            <p class="text-sm text-gray-500 mt-1">by Brian E. Lassiter</p>
         </header>
 
         <main class="grid grid-cols-1 gap-8">
@@ -100,9 +110,20 @@
             <div class="bg-white p-6 rounded-xl shadow-lg">
                 <div class="flex justify-between items-center mb-4 border-b pb-2">
                     <h2 class="text-xl font-semibold">Project Tasks</h2>
-                    <div class="flex items-center space-x-2 text-sm">
-                        <label for="iterations" class="text-gray-600 font-medium">Simulations:</label>
-                        <input type="number" id="iterations" value="50000" step="1000" class="w-24 p-1 border rounded-md text-center">
+                    <div class="flex items-center space-x-4 text-sm">
+                        <div class="flex items-center space-x-2">
+                            <label for="units-select" class="text-gray-600 font-medium">Units:</label>
+                            <select id="units-select" class="p-1 border rounded-md">
+                                <option value="Days">Days</option>
+                                <option value="Weeks">Weeks</option>
+                                <option value="Months">Months</option>
+                                <option value="$">$</option>
+                            </select>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <label for="iterations" class="text-gray-600 font-medium">Simulations:</label>
+                            <input type="number" id="iterations" value="50000" step="1000" class="w-24 p-1 border rounded-md text-center">
+                        </div>
                     </div>
                 </div>
                 <div class="overflow-x-auto">
@@ -145,7 +166,7 @@
             <div id="output-container" class="hidden bg-white p-6 rounded-xl shadow-lg">
                 <h2 class="text-xl font-semibold mb-4 border-b pb-2">Project Timeline Analysis</h2>
                 
-                <h3 class="text-lg font-semibold mt-4">Network Diagram (Time-Scaled)</h3>
+                <h3 class="text-lg font-semibold mt-4">Network Diagram (Time-Scaled with Slack)</h3>
                 <div id="diagram-container" class="w-full h-96 md:h-[28rem] bg-gray-50 rounded-lg border border-gray-200 overflow-hidden mt-2">
                     <svg id="network-diagram" class="w-full h-full"></svg>
                 </div>
@@ -159,9 +180,9 @@
                        <!-- Summary results will be populated here -->
                     </div>
                     <div class="bg-gray-50 p-4 rounded-lg border">
-                        <h3 class="font-semibold text-lg mb-2">Completion Probability</h3>
+                        <h3 class="font-semibold text-lg mb-2" id="completion-prob-title">Completion Probability</h3>
                         <div class="flex items-center space-x-2">
-                            <label for="target-duration" class="whitespace-nowrap">Target Duration:</label>
+                            <label for="target-duration" class="whitespace-nowrap" id="target-duration-label">Target Duration:</label>
                             <input type="number" id="target-duration" class="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500" placeholder="e.g., 25">
                             <button id="calculate-prob-btn" class="bg-indigo-600 text-white py-2 px-4 rounded-lg hover:bg-indigo-700 transition">Calculate</button>
                         </div>
@@ -189,9 +210,9 @@
                            <!-- Effort summary results will be populated here -->
                         </div>
                         <div class="bg-gray-50 p-4 rounded-lg border">
-                            <h3 class="font-semibold text-lg mb-2">Effort Probability</h3>
+                            <h3 class="font-semibold text-lg mb-2" id="effort-prob-title">Effort Probability</h3>
                             <div class="flex items-center space-x-2">
-                                <label for="target-effort" class="whitespace-nowrap">Target Effort:</label>
+                                <label for="target-effort" class="whitespace-nowrap" id="target-effort-label">Target Effort:</label>
                                 <input type="number" id="target-effort" class="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500" placeholder="e.g., 40">
                                 <button id="calculate-effort-prob-btn" class="bg-indigo-600 text-white py-2 px-4 rounded-lg hover:bg-indigo-700 transition">Calculate</button>
                             </div>
@@ -211,6 +232,29 @@
                 <p class="text-gray-500 mt-2">Add tasks above or load sample data to see the analysis.</p>
             </div>
         </main>
+
+        <!-- Explanation Section -->
+        <div class="mt-8 bg-white p-6 rounded-xl shadow-lg">
+            <h2 class="text-2xl font-semibold mb-4">About This PERT Analyzer</h2>
+            <div class="space-y-4 text-gray-700">
+                <div>
+                    <h3 class="text-lg font-semibold">What is PERT?</h3>
+                    <p>The <strong>Program Evaluation and Review Technique (PERT)</strong> is a project management tool used to analyze and represent the tasks involved in completing a given project. It's particularly useful for projects with uncertainty in task durations. By using a <strong>3-point estimate</strong> for each task (Optimistic, Most Likely, and Pessimistic), PERT calculates a weighted average for each task's duration, providing a more realistic forecast than a single-point estimate.</p>
+                    <p class="mt-2">This tool provides two distinct types of analysis. The <strong>Project Timeline Analysis</strong> uses the Critical Path Method to determine the project's likely completion date, accounting for tasks that can be done in parallel. The <strong>Total Quantity of Work Analysis</strong>, on the other hand, simply sums the duration of all tasks to estimate the total "person-days" of effort required, which is useful for budgeting and resource planning.</p>
+                </div>
+                <div>
+                    <h3 class="text-lg font-semibold">How to Use This Tool</h3>
+                    <ol class="list-decimal list-inside space-y-2 mt-2">
+                        <li><strong>Add Tasks:</strong> Use the "Add Task" button to create rows for each task in your project. You can also import tasks from a CSV file.</li>
+                        <li><strong>Define Dependencies:</strong> For each task, list the tasks that must be completed before it can begin. For multiple dependencies, separate them with a comma (e.g., A,B).</li>
+                        <li><strong>Provide Estimates:</strong> Enter your Optimistic (a), Most Likely (m), and Pessimistic (b) time estimates for each task.</li>
+                        <li><strong>Estimate:</strong> Click the "Estimate" button to run the analysis. This tool uses a powerful <strong>Monte Carlo simulation</strong> to run your project thousands of times, generating a highly accurate probability distribution for your project's timeline and total effort.</li>
+                        <li><strong>Analyze Results:</strong> Review the time-scaled network diagram, summary statistics, and probability charts to understand your project's critical path, potential completion dates, and overall workload.</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+
     </div>
     
     <!-- Error Modal -->
@@ -243,6 +287,7 @@
             const calculateProbBtn = document.getElementById('calculate-prob-btn');
             const probabilityResult = document.getElementById('probability-result');
             const iterationsInput = document.getElementById('iterations');
+            const unitsSelect = document.getElementById('units-select');
 
             // New elements for effort analysis
             const effortSummary = document.getElementById('effort-summary');
@@ -629,13 +674,19 @@
                 const p95 = d3.quantile(simulationResults, 0.95);
                 const p997 = d3.quantile(simulationResults, 0.997);
 
+                const units = unitsSelect.value;
+                const isCost = units === '$';
+                
+                const durationLabel = isCost ? 'Cost' : 'Duration';
+                const completionLabel = isCost ? 'Completion Cost' : 'Completion Time';
+
                 resultsSummary.innerHTML = `
                     <h3 class="font-semibold text-lg mb-3 text-gray-800">Project Summary (from Simulation)</h3>
-                    <p class="flex justify-between"><span>Mean Duration:</span> <span class="font-bold">${simMean.toPrecision(2)}</span></p>
-                    <p class="flex justify-between border-t pt-2 mt-2"><span>50% Confidence (Median):</span> <span class="font-bold">${p50.toPrecision(2)}</span></p>
-                    <p class="flex justify-between"><span>68% Confidence:</span> <span class="font-bold">${p68.toPrecision(2)}</span></p>
-                    <p class="flex justify-between"><span>95% Confidence:</span> <span class="font-bold">${p95.toPrecision(2)}</span></p>
-                    <p class="flex justify-between"><span>99.7% Confidence:</span> <span class="font-bold">${p997.toPrecision(2)}</span></p>
+                    <p class="flex justify-between"><span>Mean ${durationLabel}:</span> <span class="font-bold">${isCost ? '$' : ''}${simMean.toPrecision(2)}</span></p>
+                    <p class="flex justify-between border-t pt-2 mt-2"><span>50% Confidence (Median):</span> <span class="font-bold">${isCost ? '$' : ''}${p50.toPrecision(2)}</span></p>
+                    <p class="flex justify-between"><span>68% Confidence:</span> <span class="font-bold">${isCost ? '$' : ''}${p68.toPrecision(2)}</span></p>
+                    <p class="flex justify-between"><span>95% Confidence:</span> <span class="font-bold">${isCost ? '$' : ''}${p95.toPrecision(2)}</span></p>
+                    <p class="flex justify-between"><span>99.7% Confidence:</span> <span class="font-bold">${isCost ? '$' : ''}${p997.toPrecision(2)}</span></p>
                 `;
                 
                 const criticalTasksList = Object.values(tasks)
@@ -652,12 +703,14 @@
                     svgId: '#probability-chart',
                     simulationResults, 
                     p50, p68, p95, p997, 
-                    title: "Project Completion Time (Days)" 
+                    title: `Project ${completionLabel} (${units})` 
                 });
             }
             
             function calculateProbability() {
                 const target = parseFloat(targetDurationInput.value);
+                 const units = unitsSelect.value;
+                const isCost = units === '$';
                 if (isNaN(target) || target < 0) {
                     probabilityResult.textContent = 'Invalid target';
                     probabilityResult.className = 'mt-3 text-center font-medium text-lg text-red-500';
@@ -665,7 +718,12 @@
                 }
                 const successCount = simulationResults.filter(d => d <= target).length;
                 const probability = successCount / simulationResults.length;
-                probabilityResult.textContent = `Prob. of finishing by day ${target}: ${(probability * 100).toFixed(0)}%`;
+                
+                if (isCost) {
+                    probabilityResult.textContent = `${(probability * 100).toFixed(0)}% probability of cost = $${target}`;
+                } else {
+                    probabilityResult.textContent = `${(probability * 100).toFixed(0)}% probability of finishing by ${units.slice(0,-1)} ${target}`;
+                }
                 probabilityResult.className = 'mt-3 text-center font-medium text-lg text-indigo-700';
             }
             calculateProbBtn.addEventListener('click', calculateProbability);
@@ -678,14 +736,18 @@
                 const p68 = d3.quantile(effortSimulationResults, 0.68);
                 const p95 = d3.quantile(effortSimulationResults, 0.95);
                 const p997 = d3.quantile(effortSimulationResults, 0.997);
+                
+                const units = unitsSelect.value;
+                const isCost = units === '$';
+                const effortLabel = isCost ? 'Total Cost' : 'Total Effort';
 
                 effortSummary.innerHTML = `
                     <h3 class="font-semibold text-lg mb-3 text-gray-800">Effort Summary (from Simulation)</h3>
-                    <p class="flex justify-between"><span>Mean Effort:</span> <span class="font-bold">${simMean.toPrecision(2)}</span></p>
-                    <p class="flex justify-between border-t pt-2 mt-2"><span>50% Confidence (Median):</span> <span class="font-bold">${p50.toPrecision(2)}</span></p>
-                    <p class="flex justify-between"><span>68% Confidence:</span> <span class="font-bold">${p68.toPrecision(2)}</span></p>
-                    <p class="flex justify-between"><span>95% Confidence:</span> <span class="font-bold">${p95.toPrecision(2)}</span></p>
-                    <p class="flex justify-between"><span>99.7% Confidence:</span> <span class="font-bold">${p997.toPrecision(2)}</span></p>
+                    <p class="flex justify-between"><span>Mean ${effortLabel}:</span> <span class="font-bold">${isCost ? '$' : ''}${simMean.toPrecision(2)}</span></p>
+                    <p class="flex justify-between border-t pt-2 mt-2"><span>50% Confidence (Median):</span> <span class="font-bold">${isCost ? '$' : ''}${p50.toPrecision(2)}</span></p>
+                    <p class="flex justify-between"><span>68% Confidence:</span> <span class="font-bold">${isCost ? '$' : ''}${p68.toPrecision(2)}</span></p>
+                    <p class="flex justify-between"><span>95% Confidence:</span> <span class="font-bold">${isCost ? '$' : ''}${p95.toPrecision(2)}</span></p>
+                    <p class="flex justify-between"><span>99.7% Confidence:</span> <span class="font-bold">${isCost ? '$' : ''}${p997.toPrecision(2)}</span></p>
                 `;
                 
                 targetEffortInput.value = Math.ceil(simMean);
@@ -695,12 +757,16 @@
                     svgId: '#effort-chart',
                     simulationResults: effortSimulationResults, 
                     p50, p68, p95, p997, 
-                    title: "Project Effort (Days)" 
+                    title: `Project ${effortLabel} (${units})` 
                 });
             }
 
             function calculateEffortProbability() {
                 const target = parseFloat(targetEffortInput.value);
+                const units = unitsSelect.value;
+                const isCost = units === '$';
+                const effortLabel = isCost ? 'total cost' : `= ${target} ${units.toLowerCase()}' work`;
+
                 if (isNaN(target) || target < 0) {
                     effortProbabilityResult.textContent = 'Invalid target';
                     effortProbabilityResult.className = 'mt-3 text-center font-medium text-lg text-red-500';
@@ -708,7 +774,12 @@
                 }
                 const successCount = effortSimulationResults.filter(d => d <= target).length;
                 const probability = successCount / effortSimulationResults.length;
-                effortProbabilityResult.textContent = `Prob. of effort being = ${target}: ${(probability * 100).toFixed(0)}%`;
+                
+                if (isCost) {
+                     effortProbabilityResult.textContent = `${(probability * 100).toFixed(0)}% probability of = $${target} ${effortLabel}`;
+                } else {
+                     effortProbabilityResult.textContent = `${(probability * 100).toFixed(0)}% probability of ${effortLabel}`;
+                }
                 effortProbabilityResult.className = 'mt-3 text-center font-medium text-lg text-indigo-700';
             }
             calculateEffortProbBtn.addEventListener('click', calculateEffortProbability);
@@ -763,8 +834,13 @@
                     .attr("id", String).attr("viewBox", "0 -5 10 10").attr("refX", 25).attr("refY", 0)
                     .attr("markerWidth", 6).attr("markerHeight", 6).attr("orient", "auto").append("path").attr("d", "M0,-5L10,0L0,5");
                 
+                // Dotted line for dependency
                 const link = svg.append("g").selectAll("line").data(links).enter().append("line")
                     .attr("class", "link").attr("marker-end", "url(#end-arrow)");
+
+                // Solid line for task duration
+                const durationLine = svg.append("g").selectAll("line").data(links.filter(l => l.source.expectedTime > 0)).enter().append("line")
+                    .attr("class", "duration-line");
 
                 const node = svg.append("g").selectAll("g").data(nodes).enter().append("g")
                     .attr("class", "node");
@@ -778,20 +854,47 @@
                 node.append("text").attr("dy", "2.5em").attr("text-anchor", "middle").attr("font-size", "10px").attr("fill", "#6b7280")
                     .text(d => d.expectedTime > 0 ? `Te=${d.expectedTime.toFixed(1)}` : '');
 
+                // Critical Path Highlighting
+                const isCriticalLink = (l) => {
+                    const sourceNode = l.source;
+                    const targetNode = l.target;
+                    return Math.abs(sourceNode.slack) < 1e-9 && 
+                           Math.abs(targetNode.slack) < 1e-9 &&
+                           Math.abs(sourceNode.ef - targetNode.es) < 1e-9;
+                };
+                
                 node.filter(d => Math.abs(d.slack) < 1e-9).classed("critical-path", true);
-                link.filter(l => {
-                    const sourceNode = tasks[l.source.id];
-                    const targetNode = tasks[l.target.id];
-                    const isCritical = Math.abs(sourceNode.slack) < 1e-9 && 
-                                       Math.abs(targetNode.slack) < 1e-9 &&
-                                       Math.abs(sourceNode.ef - targetNode.es) < 1e-9;
-                    return isCritical;
-                }).classed("critical-path", true).attr("marker-end", "url(#end-arrow-critical)");
-
+                
+                // Hide the solid duration line for critical paths
+                durationLine.filter(isCriticalLink).style("display", "none");
+                
+                link.filter(isCriticalLink)
+                    .classed("critical-path", true)
+                    .attr("marker-end", "url(#end-arrow-critical)");
+                
                 simulation.on("tick", () => {
-                    const radius = 40; // Increased radius to account for text
+                    const radius = 40;
+                    // Position dotted dependency line
                     link.attr("x1", d => d.source.x).attr("y1", d => d.source.y)
                         .attr("x2", d => d.target.x).attr("y2", d => d.target.y);
+                    
+                    // Position solid duration line to overlap the dotted line
+                    durationLine
+                        .attr("x1", d => d.source.x)
+                        .attr("y1", d => d.source.y)
+                        .attr("x2", d => {
+                            const totalTime = d.target.es - d.source.es;
+                            if (totalTime <= 1e-9) return d.source.x; // Avoid division by zero
+                            const ratio = Math.min(1, d.source.expectedTime / totalTime);
+                            return d.source.x + ratio * (d.target.x - d.source.x);
+                        })
+                        .attr("y2", d => {
+                            const totalTime = d.target.es - d.source.es;
+                            if (totalTime <= 1e-9) return d.source.y; // Avoid division by zero
+                            const ratio = Math.min(1, d.source.expectedTime / totalTime);
+                            return d.source.y + ratio * (d.target.y - d.source.y);
+                        });
+
                     node.attr("transform", d => {
                          d.y = Math.max(radius, Math.min(height - radius, d.y));
                          return `translate(${d.x},${d.y})`
@@ -913,7 +1016,7 @@
                 // Labels
                 svg.append("text").attr("text-anchor", "middle").attr("x", margin.left + width / 2).attr("y", height + margin.top + 40).text(title).attr("fill", "#374151").attr("font-weight", 500);
                 svg.append("text").attr("transform", "rotate(-90)").attr("y", 0).attr("x", 0 - (height / 2) - margin.top).attr("dy", "1em").attr("text-anchor", "middle").text("Probability Density").attr("fill", "#3b82f6").attr("font-weight", 500);
-                svg.append("text").attr("transform", "rotate(-90)").attr("y", width + margin.left + margin.right).attr("x", 0 - (height / 2) - margin.top).attr("dy", "-3.5em").attr("text-anchor", "middle").text("Cumulative Probability").attr("fill", "#f97316").attr("font-weight", 500);
+                svg.append("text").attr("transform", "rotate(-90)").attr("y", width + margin.left + 75).attr("x", 0 - (height / 2) - margin.top).attr("text-anchor", "middle").text("Cumulative Probability").attr("fill", "#f97316").attr("font-weight", 500);
             }
 
             function drag(simulation, height) {
@@ -954,6 +1057,7 @@
             downloadCsvBtn.addEventListener('click', downloadCSV);
             importCsvInput.addEventListener('change', importCSV);
             tasksTbody.addEventListener('input', clearResults);
+            unitsSelect.addEventListener('change', clearResults);
             downloadDiagramBtn.addEventListener('click', function() {
                 const svgEl = document.getElementById('network-diagram');
                 
