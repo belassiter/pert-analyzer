@@ -22,6 +22,7 @@
             font-size: 12px;
             font-weight: 500;
             pointer-events: none;
+            text-anchor: middle;
         }
         .link {
             stroke: #9ca3af;
@@ -145,8 +146,11 @@
                 <h2 class="text-xl font-semibold mb-4 border-b pb-2">Project Timeline Analysis</h2>
                 
                 <h3 class="text-lg font-semibold mt-4">Network Diagram (Time-Scaled)</h3>
-                <div id="diagram-container" class="w-full h-96 bg-gray-50 rounded-lg border border-gray-200 overflow-hidden mt-2">
+                <div id="diagram-container" class="w-full h-96 md:h-[28rem] bg-gray-50 rounded-lg border border-gray-200 overflow-hidden mt-2">
                     <svg id="network-diagram" class="w-full h-full"></svg>
+                </div>
+                <div class="mt-2 text-center">
+                    <button id="download-diagram-btn" class="bg-gray-600 text-white py-1 px-3 rounded-lg hover:bg-gray-700 transition text-sm">Download Network Diagram (PNG)</button>
                 </div>
                 
                 <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -228,6 +232,7 @@
             const loadSampleBtn = document.getElementById('load-sample-btn');
             const downloadTemplateBtn = document.getElementById('download-template-btn');
             const downloadCsvBtn = document.getElementById('download-csv-btn');
+            const downloadDiagramBtn = document.getElementById('download-diagram-btn');
             const importCsvInput = document.getElementById('import-csv-input');
             const outputContainer = document.getElementById('output-container');
             const welcomeMessage = document.getElementById('welcome-message');
@@ -293,13 +298,12 @@
             function loadSampleData() {
                 tasksTbody.innerHTML = '';
                 const sampleTasks = [
-                    { letter: 'A', a: 2, m: 4, b: 10, deps: '' },
-                    { letter: 'B', a: 3, m: 5, b: 12, deps: 'A' },
-                    { letter: 'C', a: 4, m: 6, b: 15, deps: 'A' },
-                    { letter: 'D', a: 2, m: 3, b: 9, deps: 'B' },
-                    { letter: 'E', a: 5, m: 7, b: 14, deps: 'C' },
-                    { letter: 'F', a: 5, m: 7, b: 14, deps: 'D, E' },					
-                    { letter: 'G', a: 3, m: 4, b: 11, deps: 'D,F' }
+                    { letter: 'A', a: 2, m: 4, b: 6, deps: '' },
+                    { letter: 'B', a: 3, m: 5, b: 8, deps: 'A' },
+                    { letter: 'C', a: 4, m: 6, b: 9, deps: 'A' },
+                    { letter: 'D', a: 2, m: 3, b: 5, deps: 'B' },
+                    { letter: 'E', a: 5, m: 7, b: 10, deps: 'C' },
+                    { letter: 'F', a: 3, m: 4, b: 6, deps: 'D,E' }
                 ];
                 sampleTasks.forEach(task => addTask(task));
             }
@@ -765,7 +769,7 @@
                 const node = svg.append("g").selectAll("g").data(nodes).enter().append("g")
                     .attr("class", "node");
                 
-                node.filter(d => d.id !== 'START' && d.id !== 'END').call(drag(simulation));
+                node.filter(d => d.id !== 'START' && d.id !== 'END').call(drag(simulation, height));
 
                 node.append("circle").attr("r", 20)
                     .attr("fill", d => (d.id === 'START' || d.id === 'END') ? '#e5e7eb' : '#dbeafe')
@@ -785,9 +789,13 @@
                 }).classed("critical-path", true).attr("marker-end", "url(#end-arrow-critical)");
 
                 simulation.on("tick", () => {
+                    const radius = 40; // Increased radius to account for text
                     link.attr("x1", d => d.source.x).attr("y1", d => d.source.y)
                         .attr("x2", d => d.target.x).attr("y2", d => d.target.y);
-                    node.attr("transform", d => `translate(${d.x},${d.y})`);
+                    node.attr("transform", d => {
+                         d.y = Math.max(radius, Math.min(height - radius, d.y));
+                         return `translate(${d.x},${d.y})`
+                    });
                 });
             }
             
@@ -908,17 +916,18 @@
                 svg.append("text").attr("transform", "rotate(-90)").attr("y", width + margin.left + margin.right).attr("x", 0 - (height / 2) - margin.top).attr("dy", "-3.5em").attr("text-anchor", "middle").text("Cumulative Probability").attr("fill", "#f97316").attr("font-weight", 500);
             }
 
-            function drag(simulation) {
+            function drag(simulation, height) {
+                const radius = 40; // Increased radius to account for text
                 function dragstarted(event, d) {
                     if (!event.active) simulation.alphaTarget(0.3).restart();
-                    d.fy = d.y; // Only set the initial fy
+                    d.fy = d.y;
                 }
                 function dragged(event, d) {
-                    d.fy = event.y; // Only update fy
+                    d.fy = Math.max(radius, Math.min(height - radius, event.y));
                 }
                 function dragended(event, d) {
                     if (!event.active) simulation.alphaTarget(0);
-                    d.fy = null; // Allow y-force to take over again
+                    d.fy = null;
                 }
                 return d3.drag().on("start", dragstarted).on("drag", dragged).on("end", dragended);
             }
@@ -945,6 +954,83 @@
             downloadCsvBtn.addEventListener('click', downloadCSV);
             importCsvInput.addEventListener('change', importCSV);
             tasksTbody.addEventListener('input', clearResults);
+            downloadDiagramBtn.addEventListener('click', function() {
+                const svgEl = document.getElementById('network-diagram');
+                
+                const padding = 40;
+                let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+
+                svgEl.querySelectorAll('g.node').forEach(el => {
+                    const bbox = el.getBBox();
+                    if (bbox.width > 0 && bbox.height > 0) {
+                        const transform = el.getAttribute('transform');
+                        const translate = /translate\(([^,]+),([^)]+)\)/.exec(transform);
+                        if(translate) {
+                            const x = parseFloat(translate[1]);
+                            const y = parseFloat(translate[2]);
+                            minX = Math.min(minX, x - bbox.width / 2);
+                            minY = Math.min(minY, y - bbox.height / 2);
+                            maxX = Math.max(maxX, x + bbox.width / 2);
+                            maxY = Math.max(maxY, y + bbox.height / 2);
+                        }
+                    }
+                });
+
+                if (!isFinite(minX)) { // Handle case where diagram is empty
+                    minX = 0; minY = 0; maxX = svgEl.clientWidth; maxY = svgEl.clientHeight;
+                }
+
+                const contentWidth = maxX - minX;
+                const contentHeight = maxY - minY;
+
+                const downloadWidth = contentWidth + padding * 2;
+                const downloadHeight = contentHeight + padding * 2;
+
+                const allStyles = Array.from(document.styleSheets)
+                    .map(styleSheet => {
+                        try {
+                            return Array.from(styleSheet.cssRules).map(rule => rule.cssText).join('');
+                        } catch (e) {
+                            console.log('Access to stylesheet %s is denied. Ignoring.', styleSheet.href);
+                            return '';
+                        }
+                    }).join('');
+                
+                const svgWithStyles = `<svg xmlns="http://www.w3.org/2000/svg" width="${downloadWidth}" height="${downloadHeight}">
+                    <defs>
+                        <style type="text/css"><![CDATA[
+                            ${allStyles}
+                        ]]></style>
+                    </defs>
+                    <g transform="translate(${-minX + padding}, ${-minY + padding})">
+                        ${svgEl.innerHTML}
+                    </g>
+                </svg>`;
+
+                const img = new Image();
+                const svgBlob = new Blob([svgWithStyles], {type: 'image/svg+xml;charset=utf-8'});
+                const url = URL.createObjectURL(svgBlob);
+
+                img.onload = function () {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = downloadWidth;
+                    canvas.height = downloadHeight;
+                    const ctx = canvas.getContext('2d');
+                    ctx.fillStyle = "#f3f4f6"; // Match background color
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(img, 0, 0);
+                    URL.revokeObjectURL(url);
+                    const dataURL = canvas.toDataURL('image/png');
+                    
+                    const a = document.createElement('a');
+                    a.href = dataURL;
+                    a.download = 'network_diagram.png';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                };
+                img.src = url;
+            });
 
             addTask();
         });
