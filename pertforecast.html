@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PERT Network Analyzer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        .node {
+            cursor: pointer;
+        }
+        .node circle {
+            stroke-width: 2px;
+        }
+        .node text {
+            font-size: 12px;
+            font-weight: 500;
+            pointer-events: none;
+        }
+        .link {
+            stroke: #9ca3af;
+            stroke-opacity: 0.8;
+            stroke-width: 2px;
+            fill: none;
+        }
+        .link-arrow {
+            fill: #9ca3af;
+        }
+        .link.critical-path {
+            stroke: #ef4444;
+            stroke-width: 3px;
+        }
+        #end-arrow-critical path {
+            fill: #ef4444;
+        }
+        .critical-path .node circle {
+            stroke: #ef4444;
+            fill: #fecaca;
+        }
+        .critical-path .node text {
+            fill: #991b1b;
+            font-weight: 700;
+        }
+        .modal {
+            transition: opacity 0.25s ease;
+        }
+        table input {
+            min-width: 60px;
+        }
+        .chart-axis path,
+        .chart-axis line {
+            stroke: #d1d5db;
+        }
+        .chart-axis text {
+            fill: #4b5563;
+            font-size: 14px; /* Increased font size */
+        }
+        .chart-grid line {
+            stroke: #e5e7eb;
+            stroke-dasharray: 2,2;
+        }
+        #estimate-btn.loading {
+            cursor: not-allowed;
+            background-color: #4ade80; /* Lighter green */
+        }
+        #estimate-btn.loading .spinner {
+            display: inline-block;
+        }
+        .spinner {
+            display: none;
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <div class="container mx-auto p-4 md:p-8">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-900">PERT Network Analyzer</h1>
+            <p class="text-md text-gray-600 mt-2">Powered by Monte Carlo Simulation for Accurate Project Forecasting</p>
+        </header>
+
+        <main class="grid grid-cols-1 gap-8">
+            <!-- Input Section -->
+            <div class="bg-white p-6 rounded-xl shadow-lg">
+                <div class="flex justify-between items-center mb-4 border-b pb-2">
+                    <h2 class="text-xl font-semibold">Project Tasks</h2>
+                    <div class="flex items-center space-x-2 text-sm">
+                        <label for="iterations" class="text-gray-600 font-medium">Simulations:</label>
+                        <input type="number" id="iterations" value="50000" step="1000" class="w-24 p-1 border rounded-md text-center">
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm text-left text-gray-500">
+                        <thead class="text-xs text-gray-700 bg-gray-50">
+                            <tr>
+                                <th scope="col" class="px-4 py-3 font-medium">Task</th>
+                                <th scope="col" class="px-4 py-3 font-medium">Dependencies</th>
+                                <th scope="col" class="px-4 py-3 font-medium">Optimistic (a)</th>
+                                <th scope="col" class="px-4 py-3 font-medium">Most Likely (m)</th>
+                                <th scope="col" class="px-4 py-3 font-medium">Pessimistic (b)</th>
+                                <th scope="col" class="px-4 py-3 font-medium"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="tasks-tbody">
+                            <!-- Task rows will be dynamically added here -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <button id="add-task-btn" class="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition duration-300 font-semibold shadow-md">Add Task</button>
+                    <button id="clear-all-btn" class="w-full bg-red-500 text-white py-2 px-4 rounded-lg hover:bg-red-600 transition duration-300 font-semibold shadow-md">Clear All</button>
+                    <button id="load-sample-btn" class="w-full bg-gray-500 text-white py-2 px-4 rounded-lg hover:bg-gray-600 transition duration-300 font-semibold shadow-md">Load Sample Data</button>
+                    <button id="download-template-btn" class="w-full bg-gray-500 text-white py-2 px-4 rounded-lg hover:bg-gray-600 transition duration-300 font-semibold shadow-md">Download CSV Template</button>
+                    <button id="download-csv-btn" class="w-full bg-gray-500 text-white py-2 px-4 rounded-lg hover:bg-gray-600 transition duration-300 font-semibold shadow-md">Download CSV</button>
+                    <div>
+                        <label for="import-csv-input" class="w-full text-center cursor-pointer bg-indigo-500 text-white py-2 px-4 rounded-lg hover:bg-indigo-600 transition duration-300 font-semibold shadow-md block">Import CSV</label>
+                        <input type="file" id="import-csv-input" class="hidden" accept=".csv">
+                    </div>
+                </div>
+                 <div class="mt-6">
+                    <button id="estimate-btn" class="w-full bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition duration-300 font-semibold shadow-md flex items-center justify-center space-x-2">
+                        <span class="spinner"></span>
+                        <span>Estimate</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Output Section -->
+            <div id="output-container" class="hidden bg-white p-6 rounded-xl shadow-lg">
+                <h2 class="text-xl font-semibold mb-4 border-b pb-2">Analysis Results</h2>
+                
+                <h3 class="text-lg font-semibold mt-4">Network Diagram (Time-Scaled)</h3>
+                <div id="diagram-container" class="w-full h-96 bg-gray-50 rounded-lg border border-gray-200 overflow-hidden mt-2">
+                    <svg id="network-diagram" class="w-full h-full"></svg>
+                </div>
+                
+                <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div id="results-summary" class="bg-gray-50 p-4 rounded-lg border">
+                       <h3 class="font-semibold text-lg mb-2">Project Summary (from Simulation)</h3>
+                       <!-- Summary results will be populated here -->
+                    </div>
+                    <div class="bg-gray-50 p-4 rounded-lg border">
+                        <h3 class="font-semibold text-lg mb-2">Completion Probability</h3>
+                        <div class="flex items-center space-x-2">
+                            <label for="target-duration" class="whitespace-nowrap">Target Duration:</label>
+                            <input type="number" id="target-duration" class="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500" placeholder="e.g., 25">
+                            <button id="calculate-prob-btn" class="bg-indigo-600 text-white py-2 px-4 rounded-lg hover:bg-indigo-700 transition">Calculate</button>
+                        </div>
+                        <p id="probability-result" class="mt-3 text-center font-medium text-lg">&nbsp;</p>
+                    </div>
+                </div>
+                 <div id="critical-path-display" class="mt-6 bg-red-50 p-4 rounded-lg border border-red-200">
+                    <h3 class="font-semibold text-lg text-red-800 mb-2">Critical Path Tasks (Based on Expected Times)</h3>
+                    <p id="critical-path-tasks" class="text-red-700 font-mono text-center text-xl"></p>
+                </div>
+                
+                <h3 class="text-lg font-semibold mt-6">Probability Distribution (from Simulation)</h3>
+                <div id="probability-chart-container" class="w-full h-96 bg-gray-50 rounded-lg border border-gray-200 overflow-hidden mt-2">
+                    <svg id="probability-chart" class="w-full h-full"></svg>
+                </div>
+            </div>
+            <div id="welcome-message" class="text-center py-20 bg-white rounded-xl shadow-lg">
+                <h2 class="text-2xl font-semibold text-gray-700">Let's Get Started!</h2>
+                <p class="text-gray-500 mt-2">Add tasks above or load sample data to see the analysis.</p>
+            </div>
+        </main>
+    </div>
+    
+    <!-- Error Modal -->
+    <div id="error-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center p-4 opacity-0 pointer-events-none">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md transform scale-95 transition-transform">
+            <h3 class="text-lg font-bold text-red-600">Error</h3>
+            <p id="error-message" class="mt-2 text-gray-600"></p>
+            <button id="close-modal-btn" class="mt-4 bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700 transition w-full">Close</button>
+        </div>
+    </div>
+
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const tasksTbody = document.getElementById('tasks-tbody');
+            const addTaskBtn = document.getElementById('add-task-btn');
+            const clearAllBtn = document.getElementById('clear-all-btn');
+            const estimateBtn = document.getElementById('estimate-btn');
+            const loadSampleBtn = document.getElementById('load-sample-btn');
+            const downloadTemplateBtn = document.getElementById('download-template-btn');
+            const downloadCsvBtn = document.getElementById('download-csv-btn');
+            const importCsvInput = document.getElementById('import-csv-input');
+            const outputContainer = document.getElementById('output-container');
+            const welcomeMessage = document.getElementById('welcome-message');
+            const diagramContainer = document.getElementById('diagram-container');
+            const resultsSummary = document.getElementById('results-summary');
+            const criticalPathTasks = document.getElementById('critical-path-tasks');
+            const targetDurationInput = document.getElementById('target-duration');
+            const calculateProbBtn = document.getElementById('calculate-prob-btn');
+            const probabilityResult = document.getElementById('probability-result');
+            const iterationsInput = document.getElementById('iterations');
+            
+            const errorModal = document.getElementById('error-modal');
+            const errorMessage = document.getElementById('error-message');
+            const closeModalBtn = document.getElementById('close-modal-btn');
+
+            let simulationResults = []; // Store results for probability calculation
+
+            // --- Task Management ---
+            function getNextTaskLetter() {
+                const existingLetters = Array.from(tasksTbody.querySelectorAll('.task-letter')).map(th => th.textContent);
+                if (existingLetters.length === 0) return 'A';
+                const maxCode = Math.max(...existingLetters.map(l => l.charCodeAt(0)));
+                return String.fromCharCode(maxCode + 1);
+            }
+
+            function addTask(task = {}) {
+                const taskLetter = task.letter || getNextTaskLetter();
+                const taskRow = document.createElement('tr');
+                taskRow.className = 'task-input-row bg-white border-b';
+                taskRow.innerHTML = `
+                    <th scope="row" class="task-letter px-4 py-2 font-medium text-gray-900 whitespace-nowrap">${taskLetter}</th>
+                    <td class="px-4 py-2">
+                        <input type="text" class="dependencies w-full p-1 border rounded-md" placeholder="e.g., A,B" value="${task.deps || ''}">
+                    </td>
+                    <td class="px-4 py-2">
+                        <input type="number" step="any" class="optimistic w-full p-1 border rounded-md text-center" value="${task.a || ''}">
+                    </td>
+                    <td class="px-4 py-2">
+                        <input type="number" step="any" class="most-likely w-full p-1 border rounded-md text-center" value="${task.m || ''}">
+                    </td>
+                    <td class="px-4 py-2">
+                        <input type="number" step="any" class="pessimistic w-full p-1 border rounded-md text-center" value="${task.b || ''}">
+                    </td>
+                    <td class="px-4 py-2 text-center">
+                        <button class="remove-task-btn text-red-500 hover:text-red-700 font-bold text-lg">&times;</button>
+                    </td>
+                `;
+                tasksTbody.appendChild(taskRow);
+
+                taskRow.querySelector('.remove-task-btn').addEventListener('click', (e) => {
+                    e.target.closest('tr').remove();
+                    clearResults();
+                });
+            }
+            
+            function loadSampleData() {
+                tasksTbody.innerHTML = '';
+                const sampleTasks = [
+                    { letter: 'A', a: 2, m: 4, b: 6, deps: '' },
+                    { letter: 'B', a: 3, m: 5, b: 8, deps: 'A' },
+                    { letter: 'C', a: 4, m: 6, b: 9, deps: 'A' },
+                    { letter: 'D', a: 2, m: 3, b: 5, deps: 'B' },
+                    { letter: 'E', a: 5, m: 7, b: 10, deps: 'C' },
+                    { letter: 'F', a: 3, m: 4, b: 6, deps: 'D,E' }
+                ];
+                sampleTasks.forEach(task => addTask(task));
+            }
+            
+            // --- CSV Functionality ---
+            function downloadTemplate() {
+                const csvContent = "data:text/csv;charset=utf-8," 
+                    + "Task,Dependencies,a,m,b\n"
+                    + "A,,2,4,6\n"
+                    + "B,A,3,5,8\n"
+                    + "C,\"A,B\",4,5,9\n"; // Example with quotes
+                const encodedUri = encodeURI(csvContent);
+                const link = document.createElement("a");
+                link.setAttribute("href", encodedUri);
+                link.setAttribute("download", "pert_template.csv");
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+            
+            function downloadCSV() {
+                let csvContent = "data:text/csv;charset=utf-8,Task,Dependencies,a,m,b\n";
+                const rows = tasksTbody.querySelectorAll('.task-input-row');
+                rows.forEach(row => {
+                    const task = row.querySelector('.task-letter').textContent;
+                    let deps = row.querySelector('.dependencies').value;
+                    if (deps.includes(',')) {
+                        deps = `"${deps}"`;
+                    }
+                    const a = row.querySelector('.optimistic').value;
+                    const m = row.querySelector('.most-likely').value;
+                    const b = row.querySelector('.pessimistic').value;
+                    csvContent += `${task},${deps},${a},${m},${b}\n`;
+                });
+
+                const encodedUri = encodeURI(csvContent);
+                const link = document.createElement("a");
+                link.setAttribute("href", encodedUri);
+                link.setAttribute("download", "pert_tasks.csv");
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+            
+            // Robust CSV row parser that handles quoted fields
+            function parseCsvRow(row) {
+                const result = [];
+                let current = '';
+                let inQuotes = false;
+                for (let i = 0; i < row.length; i++) {
+                    const char = row[i];
+                    if (char === '"') {
+                        if (inQuotes && row[i+1] === '"') { // Handle escaped quote ""
+                            current += '"';
+                            i++;
+                        } else {
+                            inQuotes = !inQuotes;
+                        }
+                    } else if (char === ',' && !inQuotes) {
+                        result.push(current);
+                        current = '';
+                    } else {
+                        current += char;
+                    }
+                }
+                result.push(current); // Add the last field
+                return result;
+            }
+
+            function importCSV(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const text = e.target.result;
+                    const rows = text.split('\n').filter(row => row.trim() !== '');
+                    if (rows.length <= 1) {
+                        showError("CSV file is empty or contains only a header.");
+                        return;
+                    }
+                    
+                    tasksTbody.innerHTML = ''; // Clear existing tasks
+                    
+                    // Start from 1 to skip header
+                    for (let i = 1; i < rows.length; i++) {
+                        const parts = parseCsvRow(rows[i].trim());
+                        if (parts.length < 5) {
+                            showError(`Row ${i+1} is malformed. Please ensure it has 5 columns.`);
+                            continue; // Skip malformed row
+                        }
+                        const task = {
+                            letter: parts[0].trim(),
+                            deps: parts[1].trim(),
+                            a: parts[2].trim(),
+                            m: parts[3].trim(),
+                            b: parts[4].trim()
+                        };
+                        addTask(task);
+                    }
+                    runAnalysis(); // Automatically run analysis after import
+                };
+                reader.onerror = () => showError("Failed to read the file.");
+                reader.readAsText(file);
+                event.target.value = ''; // Reset input to allow re-uploading the same file
+            }
+
+
+            // --- Error Handling ---
+            function showError(message) {
+                errorMessage.textContent = message;
+                errorModal.classList.remove('opacity-0', 'pointer-events-none');
+                errorModal.querySelector('div').classList.remove('scale-95');
+            }
+
+            closeModalBtn.addEventListener('click', () => {
+                errorModal.classList.add('opacity-0', 'pointer-events-none');
+                errorModal.querySelector('div').classList.add('scale-95');
+            });
+
+            // --- Monte Carlo & PERT Logic ---
+
+            // Gamma function approximation (Lanczos approximation)
+            function logGamma(z) {
+                const g = 7;
+                const p = [0.99999999999980993, 676.5203681218851, -1259.1392167224028, 771.32342877765313, -176.61502916214059, 12.507343278686905, -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7];
+                if (z < 0.5) return Math.PI / (Math.sin(Math.PI * z) * Math.exp(logGamma(1 - z)));
+                z -= 1;
+                let x = p[0];
+                for (let i = 1; i < g + 2; i++) x += p[i] / (z + i);
+                const t = z + g + 0.5;
+                return Math.log(Math.sqrt(2 * Math.PI)) + (z + 0.5) * Math.log(t) - t + Math.log(x);
+            }
+
+            // Beta distribution random sampler
+            function betaSample(alpha, beta) {
+                const u1 = gammaSample(alpha, 1);
+                const u2 = gammaSample(beta, 1);
+                return u1 / (u1 + u2);
+            }
+
+            // Gamma distribution random sampler (Marsaglia and Tsang's method)
+            function gammaSample(alpha, beta) {
+                if (alpha < 1) return gammaSample(alpha + 1, beta) * Math.pow(Math.random(), 1 / alpha);
+                const d = alpha - 1 / 3;
+                const c = 1 / Math.sqrt(9 * d);
+                let v, x, u;
+                while (true) {
+                    do {
+                        x = zNormal();
+                        v = 1 + c * x;
+                    } while (v <= 0);
+                    v = v * v * v;
+                    u = Math.random();
+                    if (u < 1 - 0.0331 * x * x * x * x) return (d * v) / beta;
+                    if (Math.log(u) < 0.5 * x * x + d * (1 - v + Math.log(v))) return (d * v) / beta;
+                }
+            }
+            
+            // Standard normal random sampler (Box-Muller transform)
+            function zNormal() {
+                let u1 = 0, u2 = 0;
+                while (u1 === 0) u1 = Math.random();
+                while (u2 === 0) u2 = Math.random();
+                return Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2.0 * Math.PI * u2);
+            }
+
+            function runAnalysis() {
+                estimateBtn.classList.add('loading');
+                estimateBtn.disabled = true;
+
+                setTimeout(() => {
+                    try {
+                        const taskRows = tasksTbody.querySelectorAll('.task-input-row');
+                        if (taskRows.length === 0) {
+                            showError("Please add at least one task.");
+                            return;
+                        }
+                        let tasks = {};
+                        let hasError = false;
+                        taskRows.forEach(row => {
+                            const letter = row.querySelector('.task-letter').textContent;
+                            const a = parseFloat(row.querySelector('.optimistic').value);
+                            const m = parseFloat(row.querySelector('.most-likely').value);
+                            const b = parseFloat(row.querySelector('.pessimistic').value);
+                            const depsStr = row.querySelector('.dependencies').value.toUpperCase().replace(/\s/g, '');
+                            if (isNaN(a) || isNaN(m) || isNaN(b) || a < 0 || m < 0 || b < 0) {
+                                showError(`Invalid time values for Task ${letter}. Please enter positive numbers.`);
+                                hasError = true; return;
+                            }
+                            if (!(a <= m && m <= b)) {
+                                showError(`For Task ${letter}, values must be in order: optimistic <= most likely <= pessimistic.`);
+                                hasError = true; return;
+                            }
+                            const dependencies = depsStr ? depsStr.split(',').filter(d => d) : [];
+                            const expectedTime = (a + 4 * m + b) / 6;
+                            const stdDev = (b - a) / 6;
+                            const variance = stdDev * stdDev;
+                            
+                            let alpha = 1, beta = 1;
+                            if (variance > 0 && (b - a) > 0) {
+                                const scaledMean = (expectedTime - a) / (b - a);
+                                const scaledVariance = variance / Math.pow(b - a, 2);
+                                const nu = (scaledMean * (1 - scaledMean) / scaledVariance) - 1;
+                                alpha = scaledMean * nu;
+                                beta = (1 - scaledMean) * nu;
+                            }
+                            
+                            tasks[letter] = { id: letter, a, m, b, dependencies, expectedTime, alpha: Math.max(0.1, alpha), beta: Math.max(0.1, beta), successors: [] };
+                        });
+                        if (hasError) return;
+                        
+                        const { fullGraph } = performPERT(JSON.parse(JSON.stringify(tasks)));
+                        
+                        const iterations = parseInt(iterationsInput.value) || 50000;
+                        simulationResults = [];
+                        for (let i = 0; i < iterations; i++) {
+                            const simTasks = JSON.parse(JSON.stringify(tasks));
+                            Object.values(simTasks).forEach(task => {
+                                if (task.b - task.a > 0) {
+                                    const sample = betaSample(task.alpha, task.beta);
+                                    task.expectedTime = task.a + sample * (task.b - task.a);
+                                } else {
+                                    task.expectedTime = task.a;
+                                }
+                            });
+                            const simResult = performPERT(simTasks);
+                            simulationResults.push(simResult.projectDuration);
+                        }
+
+                        displayResults({ tasks: fullGraph, simulationResults });
+
+                    } catch (e) {
+                        console.error(e);
+                        showError("An unexpected error occurred during analysis.");
+                    } finally {
+                        estimateBtn.classList.remove('loading');
+                        estimateBtn.disabled = false;
+                    }
+                }, 50);
+            }
+
+            function performPERT(tasks) {
+                Object.values(tasks).forEach(task => { task.successors = []; });
+                Object.values(tasks).forEach(task => {
+                    task.dependencies.forEach(depId => {
+                        if (tasks[depId]) tasks[depId].successors.push(task.id);
+                    });
+                });
+
+                const startNode = { id: 'START', expectedTime: 0, successors: [], dependencies: [] };
+                const endNode = { id: 'END', expectedTime: 0, successors: [], dependencies: [] };
+                Object.values(tasks).forEach(task => {
+                    if (task.dependencies.length === 0) {
+                        startNode.successors.push(task.id);
+                        task.dependencies.push('START');
+                    }
+                    if (!Object.values(tasks).some(t => t.dependencies.includes(task.id))) {
+                        task.successors.push('END');
+                        endNode.dependencies.push(task.id);
+                    }
+                });
+                const fullGraph = { ...tasks, START: startNode, END: endNode };
+                
+                const sortedNodes = [];
+                const queue = ['START'];
+                const inDegree = {};
+                Object.values(fullGraph).forEach(node => { inDegree[node.id] = node.dependencies.length; });
+                while(queue.length > 0) {
+                    const u = queue.shift();
+                    sortedNodes.push(u);
+                    if (fullGraph[u]) {
+                        fullGraph[u].successors.forEach(vId => {
+                            if(inDegree[vId] !== undefined) {
+                                inDegree[vId]--;
+                                if (inDegree[vId] === 0) queue.push(vId);
+                            }
+                        });
+                    }
+                }
+                
+                Object.values(fullGraph).forEach(node => { node.es = 0; });
+                sortedNodes.forEach(nodeId => {
+                    const node = fullGraph[nodeId];
+                    node.ef = node.es + node.expectedTime;
+                    node.successors.forEach(succId => {
+                        fullGraph[succId].es = Math.max(fullGraph[succId].es, node.ef);
+                    });
+                });
+                
+                const projectDuration = fullGraph['END'].es;
+                fullGraph['END'].ef = projectDuration;
+                
+                Object.values(fullGraph).forEach(node => { node.lf = projectDuration; });
+                [...sortedNodes].reverse().forEach(nodeId => {
+                    const node = fullGraph[nodeId];
+                    node.ls = node.lf - node.expectedTime;
+                    node.dependencies.forEach(depId => {
+                        fullGraph[depId].lf = Math.min(fullGraph[depId].lf, node.ls);
+                    });
+                });
+                
+                Object.values(fullGraph).forEach(node => { node.slack = node.ls - node.es; });
+                return { fullGraph, projectDuration };
+            }
+
+            // --- Display Logic ---
+            function displayResults({ tasks, simulationResults }) {
+                welcomeMessage.classList.add('hidden');
+                outputContainer.classList.remove('hidden');
+
+                simulationResults.sort((a, b) => a - b);
+
+                const simMean = d3.mean(simulationResults);
+                const p50 = d3.quantile(simulationResults, 0.50);
+                const p68 = d3.quantile(simulationResults, 0.68);
+                const p95 = d3.quantile(simulationResults, 0.95);
+                const p997 = d3.quantile(simulationResults, 0.997);
+
+                resultsSummary.innerHTML = `
+                    <h3 class="font-semibold text-lg mb-3 text-gray-800">Project Summary (from Simulation)</h3>
+                    <p class="flex justify-between"><span>Mean Duration:</span> <span class="font-bold">${simMean.toPrecision(2)}</span></p>
+                    <p class="flex justify-between border-t pt-2 mt-2"><span>50% Confidence (Median):</span> <span class="font-bold">${p50.toPrecision(2)}</span></p>
+                    <p class="flex justify-between"><span>68% Confidence:</span> <span class="font-bold">${p68.toPrecision(2)}</span></p>
+                    <p class="flex justify-between"><span>95% Confidence:</span> <span class="font-bold">${p95.toPrecision(2)}</span></p>
+                    <p class="flex justify-between"><span>99.7% Confidence:</span> <span class="font-bold">${p997.toPrecision(2)}</span></p>
+                `;
+                
+                const criticalTasksList = Object.values(tasks)
+                    .filter(task => Math.abs(task.slack) < 1e-9 && task.id !== 'START' && task.id !== 'END')
+                    .map(task => task.id)
+                    .sort();
+                criticalPathTasks.textContent = criticalTasksList.length > 0 ? criticalTasksList.join(' ? ') : 'None';
+
+                targetDurationInput.value = Math.ceil(simMean);
+                calculateProbability();
+
+                drawDiagram({ tasks });
+                drawProbabilityChart({ simulationResults, p50, p68, p95, p997 });
+            }
+            
+            function calculateProbability() {
+                const target = parseFloat(targetDurationInput.value);
+                if (isNaN(target) || target < 0) {
+                    probabilityResult.textContent = 'Invalid target';
+                    probabilityResult.className = 'mt-3 text-center font-medium text-lg text-red-500';
+                    return;
+                }
+                const successCount = simulationResults.filter(d => d <= target).length;
+                const probability = successCount / simulationResults.length;
+                probabilityResult.textContent = `Prob. of finishing by day ${target}: ${(probability * 100).toFixed(0)}%`;
+                probabilityResult.className = 'mt-3 text-center font-medium text-lg text-indigo-700';
+            }
+            calculateProbBtn.addEventListener('click', calculateProbability);
+
+            function drawDiagram({ tasks }) {
+                const svg = d3.select("#network-diagram");
+                svg.selectAll("*").remove();
+
+                const width = diagramContainer.clientWidth;
+                const height = diagramContainer.clientHeight;
+                
+                const nodes = Object.values(tasks).map(d => ({...d}));
+                const links = [];
+                nodes.forEach(node => {
+                    node.successors.forEach(succId => {
+                        links.push({ source: node.id, target: succId });
+                    });
+                });
+                
+                const projectDuration = tasks['END'].es;
+                if (projectDuration === 0) {
+                     svg.append("text").attr("x", width/2).attr("y", height/2).attr("text-anchor", "middle").text("Add task durations to see diagram.");
+                     return;
+                }
+
+                const startNode = nodes.find(n => n.id === 'START');
+                const endNode = nodes.find(n => n.id === 'END');
+                if (startNode) {
+                    startNode.fx = 40; 
+                    startNode.fy = height / 2;
+                }
+                 if (endNode) {
+                    endNode.fy = height / 2;
+                }
+                
+                const xScale = d3.scaleLinear().domain([0, projectDuration]).range([150, width - 40]);
+                
+                nodes.forEach(n => {
+                    if (n.id !== 'START') {
+                        n.fx = xScale(n.es);
+                    }
+                });
+                
+                const simulation = d3.forceSimulation(nodes)
+                    .force("link", d3.forceLink(links).id(d => d.id).strength(0.2))
+                    .force("charge", d3.forceManyBody().strength(-1200)) 
+                    .force("y", d3.forceY(height / 2).strength(0.15)) 
+                    .force("collide", d3.forceCollide(70));
+
+                svg.append("defs").selectAll("marker").data(["end-arrow", "end-arrow-critical"]).enter().append("marker")
+                    .attr("id", String).attr("viewBox", "0 -5 10 10").attr("refX", 25).attr("refY", 0)
+                    .attr("markerWidth", 6).attr("markerHeight", 6).attr("orient", "auto").append("path").attr("d", "M0,-5L10,0L0,5");
+                
+                const link = svg.append("g").selectAll("line").data(links).enter().append("line")
+                    .attr("class", "link").attr("marker-end", "url(#end-arrow)");
+
+                const node = svg.append("g").selectAll("g").data(nodes).enter().append("g")
+                    .attr("class", "node");
+                
+                node.filter(d => d.id !== 'START' && d.id !== 'END').call(drag(simulation));
+
+                node.append("circle").attr("r", 20)
+                    .attr("fill", d => (d.id === 'START' || d.id === 'END') ? '#e5e7eb' : '#dbeafe')
+                    .attr("stroke", d => (d.id === 'START' || d.id === 'END') ? '#9ca3af' : '#60a5fa');
+                node.append("text").attr("dy", ".35em").attr("text-anchor", "middle").text(d => d.id);
+                node.append("text").attr("dy", "2.5em").attr("text-anchor", "middle").attr("font-size", "10px").attr("fill", "#6b7280")
+                    .text(d => d.expectedTime > 0 ? `Te=${d.expectedTime.toFixed(1)}` : '');
+
+                node.filter(d => Math.abs(d.slack) < 1e-9).classed("critical-path", true);
+                link.filter(l => {
+                    const sourceNode = tasks[l.source.id];
+                    const targetNode = tasks[l.target.id];
+                    const isCritical = Math.abs(sourceNode.slack) < 1e-9 && 
+                                       Math.abs(targetNode.slack) < 1e-9 &&
+                                       Math.abs(sourceNode.ef - targetNode.es) < 1e-9;
+                    return isCritical;
+                }).classed("critical-path", true).attr("marker-end", "url(#end-arrow-critical)");
+
+                simulation.on("tick", () => {
+                    link.attr("x1", d => d.source.x).attr("y1", d => d.source.y)
+                        .attr("x2", d => d.target.x).attr("y2", d => d.target.y);
+                    node.attr("transform", d => `translate(${d.x},${d.y})`);
+                });
+            }
+            
+            function drawProbabilityChart({ simulationResults, p50, p68, p95, p997 }) {
+                const svg = d3.select("#probability-chart");
+                svg.selectAll("*").remove();
+
+                const margin = {top: 40, right: 90, bottom: 50, left: 60}; // Increased right margin
+                const width = document.getElementById('probability-chart-container').clientWidth - margin.left - margin.right;
+                const height = document.getElementById('probability-chart-container').clientHeight - margin.top - margin.bottom;
+
+                const chart = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+                
+                const xScale = d3.scaleLinear()
+                    .domain(d3.extent(simulationResults))
+                    .range([0, width]);
+                
+                const histogram = d3.histogram()
+                    .value(d => d)
+                    .domain(xScale.domain())
+                    .thresholds(xScale.ticks(40)); 
+
+                const bins = histogram(simulationResults);
+                
+                if (bins.length === 0 || bins[0].x1 === bins[0].x0) {
+                     chart.append("text").attr("x", width/2).attr("y", height/2).attr("text-anchor", "middle").text("Not enough data to draw chart.");
+                     return;
+                }
+
+                const binWidth = bins[0].x1 - bins[0].x0;
+                const totalRuns = simulationResults.length;
+                const maxDensity = d3.max(bins, d => d.length / (totalRuns * binWidth));
+
+                const yLeftScale = d3.scaleLinear()
+                    .domain([0, maxDensity * 1.1]) // Add 10% padding
+                    .range([height, 0]);
+                
+                const yRightScale = d3.scaleLinear().domain([0, 1]).range([height, 0]);
+
+                // Axes
+                const xAxis = d3.axisBottom(xScale);
+                const yLeftAxis = d3.axisLeft(yLeftScale).ticks(5).tickFormat(d3.format(".2f"));
+                const yRightAxis = d3.axisRight(yRightScale).ticks(5).tickFormat(d3.format(".0%"));
+                
+                chart.append("g").attr("class", "chart-axis").attr("transform", `translate(0,${height})`).call(xAxis);
+                chart.append("g").attr("class", "chart-axis").call(yLeftAxis);
+                chart.append("g").attr("class", "chart-axis").attr("transform", `translate(${width}, 0)`).call(yRightAxis);
+
+                // Bars (Histogram)
+                chart.selectAll("rect")
+                    .data(bins)
+                    .enter()
+                    .append("rect")
+                        .attr("x", 1)
+                        .attr("transform", d => {
+                            const density = d.length / (totalRuns * binWidth);
+                            return `translate(${xScale(d.x0)}, ${yLeftScale(density)})`;
+                        })
+                        .attr("width", d => Math.max(0, xScale(d.x1) - xScale(d.x0) - 1))
+                        .attr("height", d => {
+                             const density = d.length / (totalRuns * binWidth);
+                            return height - yLeftScale(density);
+                        })
+                        .style("fill", "#93c5fd"); // Lighter blue
+                
+                // Cumulative Line (CDF)
+                const cumulativeData = [];
+                let cumulative = 0;
+                bins.forEach(bin => {
+                    cumulative += bin.length;
+                    cumulativeData.push({time: bin.x1, cdf: cumulative / totalRuns});
+                });
+
+                const cdfLine = d3.line().x(d => xScale(d.time)).y(d => yRightScale(d.cdf));
+                chart.append("path").datum(cumulativeData).attr("fill", "none").attr("stroke", "#f97316").attr("stroke-width", 2.5).attr("d", cdfLine);
+
+                // Confidence Markers
+                const confidencePoints = [
+                    { prob: 0.50, time: p50, label: "50%" },
+                    { prob: 0.68, time: p68, label: "68%" },
+                    { prob: 0.95, time: p95, label: "95%" },
+                    { prob: 0.997, time: p997, label: "99.7%" }
+                ];
+
+                const markers = chart.selectAll(".confidence-marker")
+                    .data(confidencePoints)
+                    .enter().append("g")
+                    .attr("class", "confidence-marker");
+
+                markers.append("circle")
+                    .attr("cx", d => xScale(d.time))
+                    .attr("cy", d => yRightScale(d.prob))
+                    .attr("r", 5)
+                    .attr("fill", "#f97316");
+                
+                markers.append("line") // Vertical line
+                    .attr("x1", d => xScale(d.time))
+                    .attr("y1", d => yRightScale(d.prob))
+                    .attr("x2", d => xScale(d.time))
+                    .attr("y2", height)
+                    .attr("stroke", "#f97316")
+                    .attr("stroke-width", 1)
+                    .attr("stroke-dasharray", "2,2");
+                
+                markers.append("text")
+                    .attr("x", d => xScale(d.time))
+                    .attr("y", d => yRightScale(d.prob) - 10)
+                    .attr("text-anchor", "middle")
+                    .attr("font-size", "10px")
+                    .attr("font-weight", "bold")
+                    .attr("fill", "#c2410c")
+                    .text(d => d.label);
+
+
+                // Labels
+                svg.append("text").attr("text-anchor", "middle").attr("x", margin.left + width / 2).attr("y", height + margin.top + 40).text("Project Completion Time (Days)").attr("fill", "#374151").attr("font-weight", 500);
+                svg.append("text").attr("transform", "rotate(-90)").attr("y", 0).attr("x", 0 - (height / 2) - margin.top).attr("dy", "1em").attr("text-anchor", "middle").text("Probability Density").attr("fill", "#3b82f6").attr("font-weight", 500);
+                svg.append("text").attr("transform", "rotate(-90)").attr("y", width + margin.left + margin.right).attr("x", 0 - (height / 2) - margin.top).attr("dy", "-3.5em").attr("text-anchor", "middle").text("Cumulative Probability").attr("fill", "#f97316").attr("font-weight", 500);
+            }
+
+            function drag(simulation) {
+                function dragstarted(event, d) {
+                    if (!event.active) simulation.alphaTarget(0.3).restart();
+                    d.fy = d.y; // Only set the initial fy
+                }
+                function dragged(event, d) {
+                    d.fy = event.y; // Only update fy
+                }
+                function dragended(event, d) {
+                    if (!event.active) simulation.alphaTarget(0);
+                    d.fy = null; // Allow y-force to take over again
+                }
+                return d3.drag().on("start", dragstarted).on("drag", dragged).on("end", dragended);
+            }
+            
+            function clearResults() {
+                outputContainer.classList.add('hidden');
+                welcomeMessage.classList.remove('hidden');
+            }
+
+            addTaskBtn.addEventListener('click', () => {
+                addTask();
+                clearResults();
+            });
+            clearAllBtn.addEventListener('click', () => {
+                tasksTbody.innerHTML = '';
+                clearResults();
+            });
+            estimateBtn.addEventListener('click', runAnalysis);
+            loadSampleBtn.addEventListener('click', () => {
+                loadSampleData();
+                runAnalysis();
+            });
+            downloadTemplateBtn.addEventListener('click', downloadTemplate);
+            downloadCsvBtn.addEventListener('click', downloadCSV);
+            importCsvInput.addEventListener('change', importCSV);
+            tasksTbody.addEventListener('input', clearResults);
+
+            addTask();
+        });
+    </script>
+</body>
+</html>
