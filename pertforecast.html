@@ -17,6 +17,20 @@
         }
         .node circle {
             stroke-width: 2px;
+            fill: #dbeafe; /* Default fill */
+            stroke: #60a5fa; /* Default stroke */
+        }
+        .node.system-node circle {
+            fill: #e5e7eb;
+            stroke: #9ca3af;
+        }
+        .node.critical-path circle {
+            stroke: #ef4444;
+            fill: #fecaca;
+        }
+        .node.critical-path text {
+            fill: #991b1b;
+            font-weight: 700;
         }
         .node text {
             font-size: 12px;
@@ -48,14 +62,6 @@
         }
         #end-arrow-critical path {
             fill: #ef4444;
-        }
-        .critical-path .node circle {
-            stroke: #ef4444;
-            fill: #fecaca;
-        }
-        .critical-path .node text {
-            fill: #991b1b;
-            font-weight: 700;
         }
         .modal {
             transition: opacity 0.25s ease;
@@ -117,7 +123,6 @@
                                 <option value="Days">Days</option>
                                 <option value="Weeks">Weeks</option>
                                 <option value="Months">Months</option>
-                                <option value="$">$</option>
                             </select>
                         </div>
                         <div class="flex items-center space-x-2">
@@ -146,9 +151,9 @@
                 <div class="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
                     <button id="add-task-btn" class="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition duration-300 font-semibold shadow-md">Add Task</button>
                     <button id="clear-all-btn" class="w-full bg-red-500 text-white py-2 px-4 rounded-lg hover:bg-red-600 transition duration-300 font-semibold shadow-md">Clear All</button>
-                    <button id="load-sample-btn" class="w-full bg-gray-500 text-white py-2 px-4 rounded-lg hover:bg-gray-600 transition duration-300 font-semibold shadow-md">Load Sample Data</button>
+                    <button id="load-sample-btn" class="w-full bg-gray-500 text-white py-2 px-4 rounded-lg hover:bg-gray-600 transition duration-300 font-semibold shadow-md">Load Example Data</button>
                     <button id="download-template-btn" class="w-full bg-gray-500 text-white py-2 px-4 rounded-lg hover:bg-gray-600 transition duration-300 font-semibold shadow-md">Download CSV Template</button>
-                    <button id="download-csv-btn" class="w-full bg-gray-500 text-white py-2 px-4 rounded-lg hover:bg-gray-600 transition duration-300 font-semibold shadow-md">Download CSV</button>
+                    <button id="download-csv-btn" class="w-full bg-gray-500 text-white py-2 px-4 rounded-lg hover:bg-gray-600 transition duration-300 font-semibold shadow-md">Export CSV</button>
                     <div>
                         <label for="import-csv-input" class="w-full text-center cursor-pointer bg-indigo-500 text-white py-2 px-4 rounded-lg hover:bg-indigo-600 transition duration-300 font-semibold shadow-md block">Import CSV</label>
                         <input type="file" id="import-csv-input" class="hidden" accept=".csv">
@@ -166,17 +171,33 @@
             <div id="output-container" class="hidden bg-white p-6 rounded-xl shadow-lg">
                 <h2 class="text-xl font-semibold mb-4 border-b pb-2">Project Timeline Analysis</h2>
                 
-                <h3 class="text-lg font-semibold mt-4">Network Diagram (Time-Scaled with Slack)</h3>
+                <h3 class="text-lg font-semibold mt-4">Network Diagram</h3>
                 <div id="diagram-container" class="w-full h-96 md:h-[28rem] bg-gray-50 rounded-lg border border-gray-200 overflow-hidden mt-2">
                     <svg id="network-diagram" class="w-full h-full"></svg>
                 </div>
-                <div class="mt-2 text-center">
-                    <button id="download-diagram-btn" class="bg-gray-600 text-white py-1 px-3 rounded-lg hover:bg-gray-700 transition text-sm">Download Network Diagram (PNG)</button>
+                <div class="mt-4 flex flex-col md:flex-row justify-between items-center gap-4">
+                    <div class="flex justify-center items-center space-x-6 text-sm text-gray-600">
+                        <div class="flex items-center space-x-2">
+                            <span class="w-8 h-1 bg-blue-500 rounded"></span>
+                            <span>Task Duration</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <span class="w-8 h-px border-t-2 border-dashed border-gray-500"></span>
+                            <span>Slack</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <span class="w-8 h-1 bg-red-500 rounded"></span>
+                            <span>Critical Path</span>
+                        </div>
+                    </div>
+                    <div>
+                        <button id="download-diagram-btn" class="bg-gray-600 text-white py-1 px-3 rounded-lg hover:bg-gray-700 transition text-sm">Download Network Diagram (PNG)</button>
+                    </div>
                 </div>
                 
                 <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div id="results-summary" class="bg-gray-50 p-4 rounded-lg border">
-                       <h3 class="font-semibold text-lg mb-2">Project Summary (from Simulation)</h3>
+                       <h3 class="font-semibold text-lg mb-2">Project Summary</h3>
                        <!-- Summary results will be populated here -->
                     </div>
                     <div class="bg-gray-50 p-4 rounded-lg border">
@@ -194,7 +215,7 @@
                     <p id="critical-path-tasks" class="text-red-700 font-mono text-center text-xl"></p>
                 </div>
                 
-                <h3 class="text-lg font-semibold mt-6">Probability Distribution (from Simulation)</h3>
+                <h3 class="text-lg font-semibold mt-6">Probability Distribution</h3>
                 <div id="probability-chart-container" class="w-full h-96 bg-gray-50 rounded-lg border border-gray-200 overflow-hidden mt-2">
                     <svg id="probability-chart" class="w-full h-full"></svg>
                 </div>
@@ -206,7 +227,7 @@
                     
                     <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div id="effort-summary" class="bg-gray-50 p-4 rounded-lg border">
-                           <h3 class="font-semibold text-lg mb-2">Effort Summary (from Simulation)</h3>
+                           <h3 class="font-semibold text-lg mb-2">Effort Summary</h3>
                            <!-- Effort summary results will be populated here -->
                         </div>
                         <div class="bg-gray-50 p-4 rounded-lg border">
@@ -220,7 +241,7 @@
                         </div>
                     </div>
                     
-                    <h3 class="text-lg font-semibold mt-6">Effort Distribution (from Simulation)</h3>
+                    <h3 class="text-lg font-semibold mt-6">Effort Distribution</h3>
                     <div id="effort-chart-container" class="w-full h-96 bg-gray-50 rounded-lg border border-gray-200 overflow-hidden mt-2">
                         <svg id="effort-chart" class="w-full h-full"></svg>
                     </div>
@@ -240,7 +261,7 @@
                 <div>
                     <h3 class="text-lg font-semibold">What is PERT?</h3>
                     <p>The <strong>Program Evaluation and Review Technique (PERT)</strong> is a project management tool used to analyze and represent the tasks involved in completing a given project. It's particularly useful for projects with uncertainty in task durations. By using a <strong>3-point estimate</strong> for each task (Optimistic, Most Likely, and Pessimistic), PERT calculates a weighted average for each task's duration, providing a more realistic forecast than a single-point estimate.</p>
-                    <p class="mt-2">This tool provides two distinct types of analysis. The <strong>Project Timeline Analysis</strong> uses the Critical Path Method to determine the project's likely completion date, accounting for tasks that can be done in parallel. The <strong>Total Quantity of Work Analysis</strong>, on the other hand, simply sums the duration of all tasks to estimate the total "person-days" of effort required, which is useful for budgeting and resource planning.</p>
+                    <p class="mt-2">This tool provides two distinct types of analysis. The <strong>Project Timeline Analysis</strong> uses the Critical Path Method to determine the project's likely completion date, accounting for tasks that can be done in parallel. The generated network diagram is time-scaled, meaning the horizontal position of each task represents its earliest start time. The <strong>Total Quantity of Work Analysis</strong>, on the other hand, simply sums the duration of all tasks to estimate the total "person-days" of effort required, which is useful for budgeting and resource planning.</p>
                 </div>
                 <div>
                     <h3 class="text-lg font-semibold">How to Use This Tool</h3>
@@ -605,24 +626,23 @@
                     });
                 });
 
-                const startNode = { id: 'START', expectedTime: 0, successors: [], dependencies: [] };
                 const endNode = { id: 'END', expectedTime: 0, successors: [], dependencies: [] };
                 Object.values(tasks).forEach(task => {
-                    if (task.dependencies.length === 0) {
-                        startNode.successors.push(task.id);
-                        task.dependencies.push('START');
-                    }
                     if (!Object.values(tasks).some(t => t.dependencies.includes(task.id))) {
                         task.successors.push('END');
                         endNode.dependencies.push(task.id);
                     }
                 });
-                const fullGraph = { ...tasks, START: startNode, END: endNode };
+                const fullGraph = { ...tasks, END: endNode };
                 
                 const sortedNodes = [];
-                const queue = ['START'];
                 const inDegree = {};
-                Object.values(fullGraph).forEach(node => { inDegree[node.id] = node.dependencies.length; });
+                Object.values(fullGraph).forEach(node => {
+                    inDegree[node.id] = node.dependencies.length;
+                });
+                
+                const queue = Object.keys(inDegree).filter(id => inDegree[id] === 0);
+
                 while(queue.length > 0) {
                     const u = queue.shift();
                     sortedNodes.push(u);
@@ -675,25 +695,24 @@
                 const p997 = d3.quantile(simulationResults, 0.997);
 
                 const units = unitsSelect.value;
-                const isCost = units === '$';
                 
-                const durationLabel = isCost ? 'Cost' : 'Duration';
-                const completionLabel = isCost ? 'Completion Cost' : 'Completion Time';
+                const durationLabel = 'Duration';
+                const completionLabel = 'Completion Time';
 
                 resultsSummary.innerHTML = `
-                    <h3 class="font-semibold text-lg mb-3 text-gray-800">Project Summary (from Simulation)</h3>
-                    <p class="flex justify-between"><span>Mean ${durationLabel}:</span> <span class="font-bold">${isCost ? '$' : ''}${simMean.toPrecision(2)}</span></p>
-                    <p class="flex justify-between border-t pt-2 mt-2"><span>50% Confidence (Median):</span> <span class="font-bold">${isCost ? '$' : ''}${p50.toPrecision(2)}</span></p>
-                    <p class="flex justify-between"><span>68% Confidence:</span> <span class="font-bold">${isCost ? '$' : ''}${p68.toPrecision(2)}</span></p>
-                    <p class="flex justify-between"><span>95% Confidence:</span> <span class="font-bold">${isCost ? '$' : ''}${p95.toPrecision(2)}</span></p>
-                    <p class="flex justify-between"><span>99.7% Confidence:</span> <span class="font-bold">${isCost ? '$' : ''}${p997.toPrecision(2)}</span></p>
+                    <h3 class="font-semibold text-lg mb-3 text-gray-800">Project Summary</h3>
+                    <p class="flex justify-between"><span>Mean ${durationLabel}:</span> <span class="font-bold">${simMean.toPrecision(2)}</span></p>
+                    <p class="flex justify-between border-t pt-2 mt-2"><span>50% Confidence (Median):</span> <span class="font-bold">${p50.toPrecision(2)}</span></p>
+                    <p class="flex justify-between"><span>68% Confidence:</span> <span class="font-bold">${p68.toPrecision(2)}</span></p>
+                    <p class="flex justify-between"><span>95% Confidence:</span> <span class="font-bold">${p95.toPrecision(2)}</span></p>
+                    <p class="flex justify-between"><span>99.7% Confidence:</span> <span class="font-bold">${p997.toPrecision(2)}</span></p>
                 `;
                 
                 const criticalTasksList = Object.values(tasks)
-                    .filter(task => Math.abs(task.slack) < 1e-9 && task.id !== 'START' && task.id !== 'END')
+                    .filter(task => Math.abs(task.slack) < 1e-9 && task.id !== 'END')
                     .map(task => task.id)
                     .sort();
-                criticalPathTasks.textContent = criticalTasksList.length > 0 ? criticalTasksList.join(' ? ') : 'None';
+                criticalPathTasks.textContent = criticalTasksList.length > 0 ? criticalTasksList.join(' -> ') : 'None';
 
                 targetDurationInput.value = Math.ceil(simMean);
                 calculateProbability();
@@ -709,8 +728,7 @@
             
             function calculateProbability() {
                 const target = parseFloat(targetDurationInput.value);
-                 const units = unitsSelect.value;
-                const isCost = units === '$';
+                const units = unitsSelect.value;
                 if (isNaN(target) || target < 0) {
                     probabilityResult.textContent = 'Invalid target';
                     probabilityResult.className = 'mt-3 text-center font-medium text-lg text-red-500';
@@ -719,11 +737,7 @@
                 const successCount = simulationResults.filter(d => d <= target).length;
                 const probability = successCount / simulationResults.length;
                 
-                if (isCost) {
-                    probabilityResult.textContent = `${(probability * 100).toFixed(0)}% probability of cost = $${target}`;
-                } else {
-                    probabilityResult.textContent = `${(probability * 100).toFixed(0)}% probability of finishing by ${units.slice(0,-1)} ${target}`;
-                }
+                probabilityResult.textContent = `${(probability * 100).toFixed(0)}% probability of finishing by ${units.slice(0,-1)} ${target}`;
                 probabilityResult.className = 'mt-3 text-center font-medium text-lg text-indigo-700';
             }
             calculateProbBtn.addEventListener('click', calculateProbability);
@@ -738,16 +752,15 @@
                 const p997 = d3.quantile(effortSimulationResults, 0.997);
                 
                 const units = unitsSelect.value;
-                const isCost = units === '$';
-                const effortLabel = isCost ? 'Total Cost' : 'Total Effort';
+                const effortLabel = 'Total Effort';
 
                 effortSummary.innerHTML = `
-                    <h3 class="font-semibold text-lg mb-3 text-gray-800">Effort Summary (from Simulation)</h3>
-                    <p class="flex justify-between"><span>Mean ${effortLabel}:</span> <span class="font-bold">${isCost ? '$' : ''}${simMean.toPrecision(2)}</span></p>
-                    <p class="flex justify-between border-t pt-2 mt-2"><span>50% Confidence (Median):</span> <span class="font-bold">${isCost ? '$' : ''}${p50.toPrecision(2)}</span></p>
-                    <p class="flex justify-between"><span>68% Confidence:</span> <span class="font-bold">${isCost ? '$' : ''}${p68.toPrecision(2)}</span></p>
-                    <p class="flex justify-between"><span>95% Confidence:</span> <span class="font-bold">${isCost ? '$' : ''}${p95.toPrecision(2)}</span></p>
-                    <p class="flex justify-between"><span>99.7% Confidence:</span> <span class="font-bold">${isCost ? '$' : ''}${p997.toPrecision(2)}</span></p>
+                    <h3 class="font-semibold text-lg mb-3 text-gray-800">Effort Summary</h3>
+                    <p class="flex justify-between"><span>Mean ${effortLabel}:</span> <span class="font-bold">${simMean.toPrecision(2)}</span></p>
+                    <p class="flex justify-between border-t pt-2 mt-2"><span>50% Confidence (Median):</span> <span class="font-bold">${p50.toPrecision(2)}</span></p>
+                    <p class="flex justify-between"><span>68% Confidence:</span> <span class="font-bold">${p68.toPrecision(2)}</span></p>
+                    <p class="flex justify-between"><span>95% Confidence:</span> <span class="font-bold">${p95.toPrecision(2)}</span></p>
+                    <p class="flex justify-between"><span>99.7% Confidence:</span> <span class="font-bold">${p997.toPrecision(2)}</span></p>
                 `;
                 
                 targetEffortInput.value = Math.ceil(simMean);
@@ -764,8 +777,7 @@
             function calculateEffortProbability() {
                 const target = parseFloat(targetEffortInput.value);
                 const units = unitsSelect.value;
-                const isCost = units === '$';
-                const effortLabel = isCost ? 'total cost' : `= ${target} ${units.toLowerCase()}' work`;
+                const effortLabel = `= ${target} ${units.toLowerCase()}' work`;
 
                 if (isNaN(target) || target < 0) {
                     effortProbabilityResult.textContent = 'Invalid target';
@@ -775,11 +787,7 @@
                 const successCount = effortSimulationResults.filter(d => d <= target).length;
                 const probability = successCount / effortSimulationResults.length;
                 
-                if (isCost) {
-                     effortProbabilityResult.textContent = `${(probability * 100).toFixed(0)}% probability of = $${target} ${effortLabel}`;
-                } else {
-                     effortProbabilityResult.textContent = `${(probability * 100).toFixed(0)}% probability of ${effortLabel}`;
-                }
+                effortProbabilityResult.textContent = `${(probability * 100).toFixed(0)}% probability of ${effortLabel}`;
                 effortProbabilityResult.className = 'mt-3 text-center font-medium text-lg text-indigo-700';
             }
             calculateEffortProbBtn.addEventListener('click', calculateEffortProbability);
@@ -806,22 +814,15 @@
                      return;
                 }
 
-                const startNode = nodes.find(n => n.id === 'START');
                 const endNode = nodes.find(n => n.id === 'END');
-                if (startNode) {
-                    startNode.fx = 40; 
-                    startNode.fy = height / 2;
-                }
-                 if (endNode) {
+                if (endNode) {
                     endNode.fy = height / 2;
                 }
                 
-                const xScale = d3.scaleLinear().domain([0, projectDuration]).range([150, width - 40]);
+                const xScale = d3.scaleLinear().domain([0, projectDuration]).range([80, width - 40]);
                 
                 nodes.forEach(n => {
-                    if (n.id !== 'START') {
-                        n.fx = xScale(n.es);
-                    }
+                    n.fx = xScale(n.es);
                 });
                 
                 const simulation = d3.forceSimulation(nodes)
@@ -845,14 +846,17 @@
                 const node = svg.append("g").selectAll("g").data(nodes).enter().append("g")
                     .attr("class", "node");
                 
-                node.filter(d => d.id !== 'START' && d.id !== 'END').call(drag(simulation, height));
+                node.filter(d => d.id !== 'END').call(drag(simulation, height));
+                
+                node.append("circle").attr("r", 20); // Styles are now handled by CSS
 
-                node.append("circle").attr("r", 20)
-                    .attr("fill", d => (d.id === 'START' || d.id === 'END') ? '#e5e7eb' : '#dbeafe')
-                    .attr("stroke", d => (d.id === 'START' || d.id === 'END') ? '#9ca3af' : '#60a5fa');
                 node.append("text").attr("dy", ".35em").attr("text-anchor", "middle").text(d => d.id);
                 node.append("text").attr("dy", "2.5em").attr("text-anchor", "middle").attr("font-size", "10px").attr("fill", "#6b7280")
                     .text(d => d.expectedTime > 0 ? `Te=${d.expectedTime.toFixed(1)}` : '');
+
+                // Add classes for styling
+                node.filter(d => d.id === 'END').classed('system-node', true);
+                node.filter(d => Math.abs(d.slack) < 1e-9).classed("critical-path", true);
 
                 // Critical Path Highlighting
                 const isCriticalLink = (l) => {
@@ -862,8 +866,6 @@
                            Math.abs(targetNode.slack) < 1e-9 &&
                            Math.abs(sourceNode.ef - targetNode.es) < 1e-9;
                 };
-                
-                node.filter(d => Math.abs(d.slack) < 1e-9).classed("critical-path", true);
                 
                 // Hide the solid duration line for critical paths
                 durationLine.filter(isCriticalLink).style("display", "none");
@@ -906,7 +908,7 @@
                 const svg = d3.select(svgId);
                 svg.selectAll("*").remove();
 
-                const margin = {top: 40, right: 90, bottom: 50, left: 60}; // Increased right margin
+                const margin = {top: 40, right: 90, bottom: 50, left: 80};
                 const width = document.getElementById(svgId.substring(1)).parentElement.clientWidth - margin.left - margin.right;
                 const height = document.getElementById(svgId.substring(1)).parentElement.clientHeight - margin.top - margin.bottom;
 
@@ -1015,7 +1017,7 @@
 
                 // Labels
                 svg.append("text").attr("text-anchor", "middle").attr("x", margin.left + width / 2).attr("y", height + margin.top + 40).text(title).attr("fill", "#374151").attr("font-weight", 500);
-                svg.append("text").attr("transform", "rotate(-90)").attr("y", 0).attr("x", 0 - (height / 2) - margin.top).attr("dy", "1em").attr("text-anchor", "middle").text("Probability Density").attr("fill", "#3b82f6").attr("font-weight", 500);
+                svg.append("text").attr("transform", "rotate(-90)").attr("y", 15).attr("x", 0 - (height / 2) - margin.top).attr("dy", "1em").attr("text-anchor", "middle").text("Probability Density").attr("fill", "#3b82f6").attr("font-weight", 500);
                 svg.append("text").attr("transform", "rotate(-90)").attr("y", width + margin.left + 75).attr("x", 0 - (height / 2) - margin.top).attr("text-anchor", "middle").text("Cumulative Probability").attr("fill", "#f97316").attr("font-weight", 500);
             }
 
